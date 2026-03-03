@@ -1,0 +1,25 @@
+{
+  "rubric_name": "report_quality",
+  "version": "1.0",
+  "description": "Scoring rubric for investigation and analysis reports.",
+  "base_score": 85,
+  "excellence_max": 15,
+  "categories": {
+    "evidence_quality": {
+      "max_points": 25,
+      "description": "Sources cited, evidence verifiable."
+    },
+    "analysis_depth": {
+      "max_points": 25,
+      "description": "Root cause identified, alternatives considered."
+    },
+    "actionability": {
+      "max_points": 20,
+      "description": "Clear recommendations with implementation steps."
+    },
+    "clarity": {
+      "max_points": 15,
+      "description": "Well-structured, readable, unambiguous."
+    }
+  }
+}

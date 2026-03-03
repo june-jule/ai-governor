@@ -1,0 +1,47 @@
+{
+  "name": "@governor/core",
+  "version": "0.1.0",
+  "description": "State-machine-enforced quality gates for AI agent output — TypeScript SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "governor",
+    "state-machine",
+    "quality-gates",
+    "ai-agents",
+    "neo4j",
+    "governance"
+  ],
+  "license": "Apache-2.0",
+  "peerDependencies": {
+    "neo4j-driver": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "neo4j-driver": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

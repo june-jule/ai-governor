@@ -1,0 +1,51 @@
+# Governor — Local Neo4j for development and testing
+#
+# Usage:
+#   docker compose up -d          # Start Neo4j
+#   docker compose down            # Stop and remove containers
+#   docker compose down -v         # Stop and remove containers + data volumes
+#
+# Neo4j Browser: http://localhost:7474
+# Bolt endpoint:  neo4j://localhost:7687
+# Default creds:  neo4j / governor-dev
+#
+# SECURITY NOTE:
+#   The credentials below are for LOCAL DEVELOPMENT ONLY.
+#   For production or shared environments:
+#     1. Override via environment:  NEO4J_AUTH=neo4j/<your-strong-password>
+#     2. Use Docker secrets or a vault provider for credential injection.
+#     3. Never commit production credentials to version control.
+#     4. Rotate credentials regularly (neo4j-admin dbms set-initial-password).
+#
+# Load the schema:
+#   cat governor/schema/neo4j_schema.cypher | docker exec -i governor-neo4j cypher-shell -u neo4j -p governor-dev
+#
+# Or from Python:
+#   from governor.backend.neo4j_backend import Neo4jBackend
+#   backend = Neo4jBackend(uri="neo4j://localhost:7687", user="neo4j", password="governor-dev")
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: governor-neo4j
+    ports:
+      - "7474:7474"   # HTTP (Neo4j Browser)
+      - "7687:7687"   # Bolt (driver connections)
+    environment:
+      NEO4J_AUTH: neo4j/governor-dev
+      NEO4J_PLUGINS: '["graph-data-science"]'
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check governor/
+          mypy governor/ --ignore-missing-imports
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest tests -v --cov=governor --cov-report=xml --cov-report=term-missing --ignore=tests/test_preset_connection.py --ignore=tests/integration
+
+  test-ts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: ["18", "20", "22"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: governor-ts/package-lock.json
+
+      - name: Install dependencies
+        run: cd governor-ts && npm ci
+
+      - name: Typecheck
+        run: cd governor-ts && npm run typecheck
+
+      - name: Build
+        run: cd governor-ts && npm run build
+
+      - name: Run tests with coverage
+        run: cd governor-ts && npm test -- --coverage
+
+  test-neo4j:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    services:
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+          NEO4J_PLUGINS: '["graph-data-science"]'
+        ports:
+          - 7687:7687
+          - 7474:7474
+        options: >-
+          --health-cmd "wget -qO- http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,neo4j]"
+      - name: Run Neo4j integration tests
+        env:
+          GOVERNOR_NEO4J_URI: neo4j://localhost:7687
+          GOVERNOR_NEO4J_USER: neo4j
+          GOVERNOR_NEO4J_PASSWORD: testpassword
+        run: pytest tests/integration/ -v --timeout=60

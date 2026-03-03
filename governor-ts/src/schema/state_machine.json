@@ -1,0 +1,131 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "version": "1.0.0",
+    "description": "Task State Machine definition. Single source of truth for all legal state transitions, role authorization, and guards.",
+    "created": "2026-02-20",
+    "owner": "governor"
+  },
+  "states": {
+    "ACTIVE": {
+      "description": "Executor is working on the task",
+      "terminal": false
+    },
+    "READY_FOR_REVIEW": {
+      "description": "Executor submitted work for review",
+      "terminal": false
+    },
+    "COMPLETED": {
+      "description": "Reviewer approved; task finished successfully",
+      "terminal": true
+    },
+    "REWORK": {
+      "description": "Reviewer returned task for revision",
+      "terminal": false
+    }
+  },
+  "transitions": [
+    {
+      "id": "T01",
+      "from_state": "ACTIVE",
+      "to_state": "READY_FOR_REVIEW",
+      "description": "Executor submission gate",
+      "allowed_roles": [
+        "EXECUTOR"
+      ],
+      "guards": [
+        "EG-01",
+        "EG-02",
+        "EG-03",
+        "EG-04",
+        "EG-05",
+        "EG-06",
+        "EG-07",
+        "EG-08"
+      ],
+      "events": [],
+      "temporal_fields": {
+        "set": [
+          "submitted_date"
+        ]
+      },
+      "notes": "EG guards validate evidence and deliverables before submission."
+    },
+    {
+      "id": "T02",
+      "from_state": "READY_FOR_REVIEW",
+      "to_state": "COMPLETED",
+      "description": "Reviewer approves - task finished",
+      "allowed_roles": [
+        "REVIEWER"
+      ],
+      "guards": [
+        "EG-01",
+        "EG-02",
+        "EG-03",
+        "EG-04",
+        "EG-05",
+        "EG-06",
+        "EG-07",
+        "EG-08"
+      ],
+      "events": [],
+      "temporal_fields": {
+        "set": [
+          "completed_date"
+        ]
+      },
+      "notes": "Terminal transition. COMPLETED has no outbound transitions."
+    },
+    {
+      "id": "T03",
+      "from_state": "READY_FOR_REVIEW",
+      "to_state": "REWORK",
+      "description": "Reviewer returns task for revision",
+      "allowed_roles": [
+        "REVIEWER"
+      ],
+      "guards": [],
+      "events": [],
+      "temporal_fields": {
+        "clear": [
+          "submitted_date"
+        ]
+      },
+      "notes": "Unconditional - the reviewer's decision to request rework needs no guard."
+    },
+    {
+      "id": "T04",
+      "from_state": "REWORK",
+      "to_state": "READY_FOR_REVIEW",
+      "description": "Executor resubmits after revision",
+      "allowed_roles": [
+        "EXECUTOR"
+      ],
+      "guards": [
+        "EG-01",
+        "EG-02",
+        "EG-03",
+        "EG-04",
+        "EG-05",
+        "EG-06",
+        "EG-07",
+        "EG-08"
+      ],
+      "events": [],
+      "temporal_fields": {
+        "set": [
+          "submitted_date"
+        ]
+      },
+      "notes": "Same guards as T01 - executor must re-satisfy all evidence contracts."
+    }
+  ],
+  "template_variables": {
+    "$task_id": "Task ID",
+    "$task_name": "Human-readable task name",
+    "$task_role": "Role assigned to the task",
+    "$task_priority": "Task priority (CRITICAL, HIGH, MEDIUM, LOW)"
+  },
+  "illegal_transitions_note": "Any transition not listed above is ILLEGAL and will be rejected with error ILLEGAL_TRANSITION. COMPLETED is terminal - no outbound transitions. 4 transitions total (T01-T04)."
+}
