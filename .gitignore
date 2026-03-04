@@ -24,5 +24,8 @@ Thumbs.db
 .venv/
 venv/
 
+# Docs
+CHANGELOG.md
+
 # Node
 node_modules/
