@@ -71,12 +71,20 @@ def from_env(**overrides: Any) -> "Neo4jBackend":
 
     Reads ``GOVERNOR_NEO4J_URI``, ``GOVERNOR_NEO4J_USER``,
     ``GOVERNOR_NEO4J_PASSWORD``, and ``GOVERNOR_NEO4J_DATABASE`` from the
-    environment.  Keyword arguments override env vars.
+    environment.  Automatically loads a ``.env`` file if ``python-dotenv``
+    is installed.  Keyword arguments override env vars.
 
     Raises:
         ValueError: If required env vars (URI, USER, PASSWORD) are missing
             and not supplied via *overrides*.
     """
+    # Auto-load .env file if python-dotenv is available
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+
     uri = overrides.pop("uri", None) or os.environ.get("GOVERNOR_NEO4J_URI")
     user = overrides.pop("user", None) or os.environ.get("GOVERNOR_NEO4J_USER")
     password = overrides.pop("password", None) or os.environ.get("GOVERNOR_NEO4J_PASSWORD")

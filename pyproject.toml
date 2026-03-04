@@ -32,7 +32,7 @@ Repository = "https://github.com/julianbusch/governor"
 Issues = "https://github.com/julianbusch/governor/issues"
 
 [project.optional-dependencies]
-neo4j = ["neo4j>=5.0"]
+neo4j = ["neo4j>=5.0", "python-dotenv>=0.19"]
 mcp = ["mcp>=1.0"]
 metrics = ["prometheus_client>=0.17"]
 types = ["typing_extensions>=4.0; python_version < '3.12'"]
