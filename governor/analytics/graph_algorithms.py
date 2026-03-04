@@ -441,8 +441,13 @@ class GovernorAnalytics:
                     mode="write",
                 )
             except Exception as cleanup_err:
-                logger.debug(
-                    "GDS graph cleanup skipped for %s: %s", graph_name, cleanup_err,
+                logger.warning(
+                    "GDS graph cleanup FAILED for '%s' — projected graph may "
+                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
+                    "manually to reclaim memory. Error: %s",
+                    graph_name,
+                    graph_name,
+                    cleanup_err,
                 )
 
     def get_blocking_bottlenecks(
@@ -512,8 +517,13 @@ class GovernorAnalytics:
                     mode="write",
                 )
             except Exception as cleanup_err:
-                logger.debug(
-                    "GDS graph cleanup skipped for %s: %s", graph_name, cleanup_err,
+                logger.warning(
+                    "GDS graph cleanup FAILED for '%s' — projected graph may "
+                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
+                    "manually to reclaim memory. Error: %s",
+                    graph_name,
+                    graph_name,
+                    cleanup_err,
                 )
 
     def detect_circular_dependencies(self) -> List[Dict[str, Any]]:
@@ -574,8 +584,13 @@ class GovernorAnalytics:
                     mode="write",
                 )
             except Exception as cleanup_err:
-                logger.debug(
-                    "GDS graph cleanup skipped for %s: %s", graph_name, cleanup_err,
+                logger.warning(
+                    "GDS graph cleanup FAILED for '%s' — projected graph may "
+                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
+                    "manually to reclaim memory. Error: %s",
+                    graph_name,
+                    graph_name,
+                    cleanup_err,
                 )
 
     def get_task_clusters(
@@ -646,6 +661,11 @@ class GovernorAnalytics:
                     mode="write",
                 )
             except Exception as cleanup_err:
-                logger.debug(
-                    "GDS graph cleanup skipped for %s: %s", graph_name, cleanup_err,
+                logger.warning(
+                    "GDS graph cleanup FAILED for '%s' — projected graph may "
+                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
+                    "manually to reclaim memory. Error: %s",
+                    graph_name,
+                    graph_name,
+                    cleanup_err,
                 )

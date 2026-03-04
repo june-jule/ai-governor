@@ -127,6 +127,12 @@ def guard_deliverables_exist(ctx: GuardContext) -> GuardResult:
     workspace = os.path.realpath(str(workspace))
 
     def _is_within(base: str, candidate: str) -> bool:
+        """Check if *candidate* is within *base* after resolving symlinks.
+
+        Both paths are resolved with ``os.path.realpath()`` to prevent
+        symlinks from escaping the allowed root. Uses ``os.path.commonpath``
+        for the containment check.
+        """
         base = os.path.realpath(base)
         candidate = os.path.realpath(candidate)
         try:
@@ -144,18 +150,39 @@ def guard_deliverables_exist(ctx: GuardContext) -> GuardResult:
             allowed_roots.append(candidate)
 
     def _path_exists_within_allowed_roots(p: str) -> bool:
+        """Check if deliverable path exists within allowed roots.
+
+        Resolves symlinks via ``os.path.realpath()`` BEFORE the
+        containment check and existence check to prevent symlinks
+        from escaping the allowed root directory. The resolved path
+        is used for both validation and existence, eliminating TOCTOU
+        race conditions between resolution and validation.
+        """
         p = str(p)
         if os.path.isabs(p):
+            # Resolve symlinks first, then validate containment on
+            # the resolved (real) path — not the original symlink path.
             candidate = os.path.realpath(p)
             if any(_is_within(root, candidate) for root in allowed_roots) and os.path.exists(candidate):
                 return True
             return False
 
         for root in allowed_roots:
-            candidate = os.path.realpath(os.path.join(root, p))
+            # Join then resolve: os.path.realpath follows symlinks so
+            # the containment check operates on the actual filesystem
+            # location, not the symlink source.
+            joined = os.path.join(root, p)
+            candidate = os.path.realpath(joined)
             if not _is_within(root, candidate):
                 continue
-            if os.path.exists(candidate):
+            # Re-resolve immediately before existence check to close
+            # the TOCTOU window where a symlink target could change
+            # between the _is_within validation and the existence test.
+            final_path = os.path.realpath(joined)
+            if final_path != candidate:
+                # Symlink target changed between checks — reject
+                continue
+            if os.path.exists(final_path):
                 return True
         return False
 

@@ -61,18 +61,14 @@ class TestErrorBoundaries:
             os.unlink(path)
 
     def test_strict_mode_rejects_unregistered_guard(self):
+        """strict=True surfaces unregistered guards at init time, not at transition time."""
         sm = _valid_sm()
         sm["transitions"][0]["guards"] = ["NONEXISTENT_GUARD"]
         path = _write_sm(sm)
         try:
             backend = MemoryBackend()
-            backend.create_task({"task_id": "T1", "status": "ACTIVE",
-                                 "task_type": "IMPLEMENTATION", "role": "DEV",
-                                 "priority": "HIGH", "content": "test"})
-            engine = TransitionEngine(backend=backend, state_machine_path=path, strict=True)
-            result = engine.transition_task("T1", "DONE", "EXECUTOR")
-            assert result["result"] == "FAIL"
-            assert result["error_code"] == "GUARD_NOT_FOUND"
+            with pytest.raises(ValueError, match="strict=True.*NONEXISTENT_GUARD"):
+                TransitionEngine(backend=backend, state_machine_path=path, strict=True)
         finally:
             os.unlink(path)
 

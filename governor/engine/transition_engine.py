@@ -551,6 +551,28 @@ class TransitionEngine:
         if errors:
             raise ValueError(f"Invalid state machine: {'; '.join(errors)}")
 
+        # Validate that all *string* guard IDs referenced by transitions
+        # are registered.  In strict mode, surface missing guards at engine
+        # construction time rather than deferring to the first transition
+        # attempt — fail fast, fail loudly.
+        #
+        # Inline guard defs (dicts with "check" keys like property_set())
+        # are excluded because they are resolved dynamically and don't
+        # require registry entries.
+        if self._strict:
+            missing_guards = []
+            for transition in self._state_machine.get("transitions", []):
+                for guard_ref in transition.get("guards", []):
+                    if isinstance(guard_ref, str) and guard_ref not in self._instance_guard_registry:
+                        missing_guards.append(guard_ref)
+            if missing_guards:
+                raise ValueError(
+                    f"strict=True: {len(missing_guards)} guard(s) referenced in "
+                    f"state machine but not registered: {sorted(set(missing_guards))}. "
+                    "Register them with @register_guard or import the module that "
+                    "defines them before constructing the engine."
+                )
+
         self._tracer = get_tracer()
 
     @property

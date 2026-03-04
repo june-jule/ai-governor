@@ -57,46 +57,42 @@ import governor.guards.executor_guards  # noqa: F401  (EG-01 through EG-08)
 
 # -- Schema setup (programmatic alternative to cypher-shell) ---------------
 
-SCHEMA_STATEMENTS = [
-    # Uniqueness constraints
-    "CREATE CONSTRAINT task_id_unique IF NOT EXISTS FOR (t:Task) REQUIRE t.task_id IS UNIQUE",
-    "CREATE CONSTRAINT review_id_unique IF NOT EXISTS FOR (r:Review) REQUIRE r.review_id IS UNIQUE",
-    "CREATE CONSTRAINT report_id_unique IF NOT EXISTS FOR (r:Report) REQUIRE r.report_id IS UNIQUE",
-    "CREATE CONSTRAINT transition_event_id_unique IF NOT EXISTS FOR (te:TransitionEvent) REQUIRE te.event_id IS UNIQUE",
-    "CREATE CONSTRAINT guard_eval_id_unique IF NOT EXISTS FOR (ge:GuardEvaluation) REQUIRE ge.eval_id IS UNIQUE",
-    # Performance indexes
-    "CREATE INDEX task_status_idx IF NOT EXISTS FOR (t:Task) ON (t.status)",
-    "CREATE INDEX task_role_idx IF NOT EXISTS FOR (t:Task) ON (t.role)",
-    "CREATE INDEX task_status_role_idx IF NOT EXISTS FOR (t:Task) ON (t.status, t.role)",
-]
-
 
 def apply_schema(backend: Neo4jBackend) -> None:
-    """Apply schema constraints and indexes.
+    """Apply schema constraints and indexes via ``ensure_schema()``.
 
-    Safe to run repeatedly — every statement uses ``IF NOT EXISTS``.
-    This is the programmatic equivalent of running:
+    Safe to run repeatedly — reads the bundled ``neo4j_schema.cypher`` file
+    and applies all statements idempotently (every statement uses
+    ``IF NOT EXISTS``).  This is the programmatic equivalent of running:
 
         cypher-shell < schema/neo4j_schema.cypher
     """
     print("Applying schema constraints and indexes...")
-    for stmt in SCHEMA_STATEMENTS:
-        try:
-            backend.execute_query(stmt)
-        except Exception as exc:
+    result = backend.ensure_schema()
+    if result.get("success"):
+        print(f"  {result.get('statements_applied', 0)} statements applied.")
+    else:
+        errors = result.get("errors", [])
+        print(f"  Schema applied with {len(errors)} warning(s):")
+        for err in errors:
             # Some AuraDB plans restrict certain index types.
             # Log and continue — the core constraints are what matter.
-            print(f"  Warning: {exc}")
+            print(f"    Warning: {err.get('error', err)}")
     print("Schema setup complete.\n")
 
 
 # -- Cleanup helper (for repeatable demo runs) ----------------------------
 
 def cleanup_demo_tasks(backend: Neo4jBackend, task_ids: list) -> None:
-    """Remove demo tasks so the example is idempotent."""
+    """Remove demo tasks so the example is idempotent.
+
+    Uses the backend's internal ``_run_write_query`` directly for cleanup.
+    In production code, prefer typed backend methods (create_task,
+    add_review, etc.) rather than raw Cypher.
+    """
     for task_id in task_ids:
         try:
-            backend.execute_query(
+            backend._run_write_query(
                 "MATCH (t:Task {task_id: $task_id}) "
                 "OPTIONAL MATCH (t)-[r]->(n) "
                 "DETACH DELETE t, n",
@@ -146,9 +142,13 @@ def main():
         # ==============================================================
         print("\n[1] Verifying AuraDB connection...")
         try:
-            result = backend.execute_query("RETURN 1 AS connected")
-            assert result[0]["connected"] == 1
-            print("    Connected to AuraDB successfully.")
+            health = backend.health_check()
+            if health.get("healthy"):
+                print(f"    Connected to AuraDB successfully (server: {health.get('server_version', 'unknown')}).")
+            else:
+                print(f"    Connection unhealthy: {health.get('error', 'unknown')}")
+                print("\n    Check your URI, credentials, and network access.")
+                sys.exit(1)
         except Exception as exc:
             print(f"    Connection failed: {exc}")
             print("\n    Check your URI, credentials, and network access.")

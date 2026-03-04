@@ -516,7 +516,7 @@ class Neo4jBackend(GovernorBackend):
         MERGE (t:Task {task_id: $task_id})
         ON CREATE SET t = $props
         ON MATCH SET t._merge_hit = true
-        WITH t, EXISTS(t._merge_hit) AS already_existed
+        WITH t, t._merge_hit IS NOT NULL AS already_existed
         REMOVE t._merge_hit
         RETURN properties(t) AS task, already_existed
         """
@@ -816,17 +816,23 @@ class Neo4jBackend(GovernorBackend):
             try:
                 session_kwargs: Dict[str, Any] = {"database": self._database}
                 with self._driver.session(**session_kwargs) as session:
+                    def _run_in_tx(tx, _timeout=None):
+                        run_kwargs: Dict[str, Any] = {}
+                        if _timeout is not None:
+                            run_kwargs["timeout"] = _timeout
+                        return [dict(record) for record in tx.run(query, params, **run_kwargs)]
+
                     tx_kwargs: Dict[str, Any] = {}
                     if self._query_timeout_seconds is not None:
-                        tx_kwargs["timeout"] = self._query_timeout_seconds
+                        tx_kwargs["_timeout"] = self._query_timeout_seconds
                     if mode == "write":
                         records = session.execute_write(
-                            lambda tx: [dict(record) for record in tx.run(query, params)],
+                            _run_in_tx,
                             **tx_kwargs,
                         )
                     else:
                         records = session.execute_read(
-                            lambda tx: [dict(record) for record in tx.run(query, params)],
+                            _run_in_tx,
                             **tx_kwargs,
                         )
 

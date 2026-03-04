@@ -568,8 +568,18 @@ class AsyncNeo4jBackend(AsyncGovernorBackend):
                 await _sleep(sleep_seconds)
 
     def _is_retryable(self, exc: Exception) -> bool:
+        # Works with and without importing Neo4j exception classes.
         cls_name = exc.__class__.__name__
-        return cls_name in {"TransientError", "ServiceUnavailable", "SessionExpired"}
+        if cls_name in {
+            "TransientError", "ServiceUnavailable", "SessionExpired",
+            "WriteServiceUnavailable",
+        }:
+            return True
+        # Check Neo4j error codes for transient write conflicts / deadlocks
+        code = getattr(exc, "code", "") or ""
+        if isinstance(code, str) and code.startswith("Neo.TransientError."):
+            return True
+        return False
 
 
 async def _sleep(seconds: float) -> None:
