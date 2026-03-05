@@ -211,7 +211,23 @@ def _parse_deliverables_from_content(content: str) -> List[str]:
     if len(content) > _MAX_CONTENT_PARSE_LENGTH:
         content = content[:_MAX_CONTENT_PARSE_LENGTH]
     paths: List[str] = []
-    content = re.sub(r"```[\s\S]*?```", "", content)
+    # Strip fenced code blocks iteratively to avoid ReDoS from
+    # backtracking on [\s\S]*? with many unclosed backtick sequences.
+    _stripped_parts: List[str] = []
+    _cursor = 0
+    while _cursor < len(content):
+        _open = content.find("```", _cursor)
+        if _open == -1:
+            _stripped_parts.append(content[_cursor:])
+            break
+        _stripped_parts.append(content[_cursor:_open])
+        _close = content.find("```", _open + 3)
+        if _close == -1:
+            # Unclosed block — keep the remainder (no match to strip)
+            _stripped_parts.append(content[_open:])
+            break
+        _cursor = _close + 3
+    content = "".join(_stripped_parts)
 
     section_pattern = (
         r"(?:^|\n)(?:#{2,3}\s+|[*_]{2})Deliverables[*_]{0,2}\s*\n"

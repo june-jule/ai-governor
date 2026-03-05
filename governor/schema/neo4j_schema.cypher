@@ -117,8 +117,7 @@ FOR (t:Task) ON (t.status, t.blocked_date);
 // ============================================================
 
 // "Transition events older than N days" — retention queries
-CREATE INDEX transition_event_occurred_at_idx IF NOT EXISTS
-FOR (te:TransitionEvent) ON (te.occurred_at);
+// NOTE: Covered by transition_event_time_idx above (same property).
 
 // "Guard evaluations linked to old events" — cascading cleanup
 CREATE INDEX guard_eval_event_idx IF NOT EXISTS

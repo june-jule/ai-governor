@@ -747,14 +747,14 @@ class Neo4jBackend(GovernorBackend):
         days = max(1, int(older_than_days))
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()[:10]
 
-        # Phase 1: Snapshot — collect event IDs and counts in a single read tx
+        # Phase 1: Snapshot — collect event IDs and eval counts in a single read tx.
+        # Each row represents one TransitionEvent with its count of linked
+        # GuardEvaluation nodes.
         snapshot_query = """
         MATCH (te:TransitionEvent)
         WHERE te.occurred_at < $cutoff
-        WITH te
         OPTIONAL MATCH (te)-[:HAS_GUARD_EVALUATION]->(ge:GuardEvaluation)
         RETURN te.event_id AS event_id,
-               count(DISTINCT te) AS event_count,
                count(ge) AS eval_count
         """
         snapshot_rows = self._run_read_query(snapshot_query, {"cutoff": cutoff_date})

@@ -43,8 +43,12 @@ _VALID_STATUS_RE = re.compile(r"^[A-Z_]{1,50}$")
 
 
 def _gds_graph_name(prefix: str) -> str:
-    """Generate a unique GDS graph name to avoid concurrent collisions."""
-    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+    """Generate a unique GDS graph name to avoid concurrent collisions.
+
+    Uses the full UUID4 hex (128 bits) to make collisions effectively
+    impossible, even under high concurrency.
+    """
+    return f"{prefix}_{uuid.uuid4().hex}"
 
 
 def _validate_status_filter(status_filter: str) -> None:
@@ -74,6 +78,31 @@ class GovernorAnalytics:
 
     def __init__(self, backend: "Neo4jBackend") -> None:
         self._backend = backend
+
+    def _drop_gds_graph(self, graph_name: str) -> None:
+        """Best-effort cleanup of a projected GDS graph.
+
+        Logs a warning with remediation steps on failure. Repeated
+        failures may leave orphaned in-memory graphs; use
+        ``CALL gds.graph.list()`` to audit and drop them manually.
+        """
+        try:
+            self._backend._run_query(
+                "CALL gds.graph.drop($graph_name, false) YIELD graphName RETURN graphName",
+                {"graph_name": graph_name},
+                mode="write",
+            )
+        except Exception as cleanup_err:
+            logger.warning(
+                "GDS graph cleanup FAILED for '%s' — projected graph may "
+                "remain in memory until the Neo4j process restarts. "
+                "Run `CALL gds.graph.list()` to find orphans, then "
+                "`CALL gds.graph.drop('%s', false)` to reclaim memory. "
+                "Error: %s",
+                graph_name,
+                graph_name,
+                cleanup_err,
+            )
 
     # ==================================================================
     # Ready NOW — work with existing schema, no GDS needed
@@ -434,21 +463,7 @@ class GovernorAnalytics:
                 return [{"error": "Neo4j GDS plugin not installed", "detail": str(e)}]
             raise
         finally:
-            try:
-                self._backend._run_query(
-                    "CALL gds.graph.drop($graph_name, false) YIELD graphName RETURN graphName",
-                    {"graph_name": graph_name},
-                    mode="write",
-                )
-            except Exception as cleanup_err:
-                logger.warning(
-                    "GDS graph cleanup FAILED for '%s' — projected graph may "
-                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
-                    "manually to reclaim memory. Error: %s",
-                    graph_name,
-                    graph_name,
-                    cleanup_err,
-                )
+            self._drop_gds_graph(graph_name)
 
     def get_blocking_bottlenecks(
         self,
@@ -510,21 +525,7 @@ class GovernorAnalytics:
                 return [{"error": "Neo4j GDS plugin not installed", "detail": str(e)}]
             raise
         finally:
-            try:
-                self._backend._run_query(
-                    "CALL gds.graph.drop($graph_name, false) YIELD graphName RETURN graphName",
-                    {"graph_name": graph_name},
-                    mode="write",
-                )
-            except Exception as cleanup_err:
-                logger.warning(
-                    "GDS graph cleanup FAILED for '%s' — projected graph may "
-                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
-                    "manually to reclaim memory. Error: %s",
-                    graph_name,
-                    graph_name,
-                    cleanup_err,
-                )
+            self._drop_gds_graph(graph_name)
 
     def detect_circular_dependencies(self) -> List[Dict[str, Any]]:
         """Strongly connected components on task dependency graph.
@@ -577,21 +578,7 @@ class GovernorAnalytics:
                 return [{"error": "Neo4j GDS plugin not installed", "detail": str(e)}]
             raise
         finally:
-            try:
-                self._backend._run_query(
-                    "CALL gds.graph.drop($graph_name, false) YIELD graphName RETURN graphName",
-                    {"graph_name": graph_name},
-                    mode="write",
-                )
-            except Exception as cleanup_err:
-                logger.warning(
-                    "GDS graph cleanup FAILED for '%s' — projected graph may "
-                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
-                    "manually to reclaim memory. Error: %s",
-                    graph_name,
-                    graph_name,
-                    cleanup_err,
-                )
+            self._drop_gds_graph(graph_name)
 
     def get_task_clusters(
         self, min_cluster_size: int = 3
@@ -654,18 +641,4 @@ class GovernorAnalytics:
                 return [{"error": "Neo4j GDS plugin not installed", "detail": str(e)}]
             raise
         finally:
-            try:
-                self._backend._run_query(
-                    "CALL gds.graph.drop($graph_name, false) YIELD graphName RETURN graphName",
-                    {"graph_name": graph_name},
-                    mode="write",
-                )
-            except Exception as cleanup_err:
-                logger.warning(
-                    "GDS graph cleanup FAILED for '%s' — projected graph may "
-                    "remain in memory. Run `CALL gds.graph.drop('%s', false)` "
-                    "manually to reclaim memory. Error: %s",
-                    graph_name,
-                    graph_name,
-                    cleanup_err,
-                )
+            self._drop_gds_graph(graph_name)
