@@ -129,15 +129,13 @@ class GuardResult:
         return "".join(parts)
 
     def to_dict(self) -> Dict[str, Any]:
-        d: Dict[str, Any] = {
+        return {
             "guard_id": self.guard_id,
             "passed": self.passed,
             "reason": self.reason,
             "fix_hint": self.fix_hint,
+            "warning": self.warning,
         }
-        if self.warning:
-            d["warning"] = True
-        return d
 
 
 # Guard callable type: (GuardContext) -> GuardResult
@@ -940,21 +938,49 @@ class TransitionEngine:
         """
         transition_params = transition_params or {}
 
+        with self._tracer.start_as_current_span("governor.transition") as _root_span:
+            _root_span.set_attribute("governor.task_id", task_id)
+            _root_span.set_attribute("governor.target_state", target_state)
+            _root_span.set_attribute("governor.calling_role", calling_role)
+            _root_span.set_attribute("governor.dry_run", dry_run)
+            return self._do_transition(
+                task_id, target_state, calling_role, dry_run, transition_params, _root_span,
+            )
+
+    def _do_transition(
+        self,
+        task_id: str,
+        target_state: str,
+        calling_role: str,
+        dry_run: bool,
+        transition_params: Dict[str, Any],
+        _span: Any,
+    ) -> Dict[str, Any]:
+        """Inner transition logic — extracted to avoid re-indenting the entire method."""
+
         # 0. Rate-limit check (before any backend call)
         if self._rate_limiter is not None and not self._rate_limiter.check(task_id):
+            _span.set_attribute("governor.result", "RATE_LIMITED")
             return _error_response(
                 ErrorCode.RATE_LIMITED,
                 f"Too many transition attempts for task '{task_id}'. Try again later.",
             )
 
         # 1. Load task
-        try:
-            task_data = self._backend.get_task(task_id)
-        except ValueError as e:
-            return _error_response(ErrorCode.TASK_NOT_FOUND, str(e))
-        except Exception as e:
-            logger.error(f"Backend read failed for task '{task_id}': {e}", exc_info=True, extra={"ctx": {"task_id": task_id}})
-            return _error_response(ErrorCode.BACKEND_ERROR, f"Backend read failed: {e}")
+        with self._tracer.start_as_current_span("governor.load_task") as load_span:
+            try:
+                task_data = self._backend.get_task(task_id)
+                load_span.set_attribute("governor.task_found", True)
+            except ValueError as e:
+                load_span.set_attribute("governor.task_found", False)
+                _span.set_attribute("governor.result", "TASK_NOT_FOUND")
+                return _error_response(ErrorCode.TASK_NOT_FOUND, str(e))
+            except Exception as e:
+                load_span.set_attribute("governor.task_found", False)
+                load_span.record_exception(e)
+                _span.set_attribute("governor.result", "BACKEND_ERROR")
+                logger.error(f"Backend read failed for task '{task_id}': {e}", exc_info=True, extra={"ctx": {"task_id": task_id}})
+                return _error_response(ErrorCode.BACKEND_ERROR, f"Backend read failed: {e}")
 
         task = task_data["task"]
         from_state = _normalize_state(task.get("status"))
@@ -1002,22 +1028,27 @@ class TransitionEngine:
             resolved_guards.append((guard_id, guard_fn))
 
         # 6. Evaluate guards — parallel when executor is available, else sequential
-        guard_results: List[GuardResult] = []
-        if self._guard_executor is not None and len(resolved_guards) > 1:
-            guard_results = self._evaluate_guards_parallel(
-                resolved_guards, ctx, task_id, transition_def,
-            )
-        else:
-            for guard_id, guard_fn in resolved_guards:
-                result = self._evaluate_single_guard(
-                    guard_id, guard_fn, ctx, task_id, transition_def,
+        with self._tracer.start_as_current_span("governor.evaluate_guards") as guards_span:
+            guards_span.set_attribute("governor.guard_count", len(resolved_guards))
+            guards_span.set_attribute("governor.parallel", self._guard_executor is not None)
+            guard_results: List[GuardResult] = []
+            if self._guard_executor is not None and len(resolved_guards) > 1:
+                guard_results = self._evaluate_guards_parallel(
+                    resolved_guards, ctx, task_id, transition_def,
                 )
-                guard_results.append(result)
+            else:
+                for guard_id, guard_fn in resolved_guards:
+                    result = self._evaluate_single_guard(
+                        guard_id, guard_fn, ctx, task_id, transition_def,
+                    )
+                    guard_results.append(result)
 
-        # Ensure deterministic ordering for parallel evaluation so that
-        # rejection_reason always reports the same failing guard.
-        if self._guard_executor is not None and len(guard_results) > 1:
-            guard_results.sort(key=lambda gr: gr.guard_id)
+            # Ensure deterministic ordering for parallel evaluation so that
+            # rejection_reason always reports the same failing guard.
+            if self._guard_executor is not None and len(guard_results) > 1:
+                guard_results.sort(key=lambda gr: gr.guard_id)
+            guards_span.set_attribute("governor.guards_passed", sum(1 for g in guard_results if g.passed))
+            guards_span.set_attribute("governor.guards_failed", sum(1 for g in guard_results if not g.passed))
 
         # 7. Compute overall PASS/FAIL (supports AND/OR guard composition)
         guard_mode = transition_def.get("guard_mode", "AND").upper()
@@ -1066,6 +1097,9 @@ class TransitionEngine:
             "state_machine_version": self._state_machine_version,
         }
 
+        _span.set_attribute("governor.result", overall_result)
+        _span.set_attribute("governor.from_state", from_state)
+
         if dry_run or overall_result == TransitionResult.FAIL:
             audit_error = self._persist_audit_event(
                 event_payload, task_id, transition_def,
@@ -1075,73 +1109,79 @@ class TransitionEngine:
             return response
 
         # 9. Apply state change via backend
-        updates: Dict[str, Any] = {"status": target_state}
+        with self._tracer.start_as_current_span("governor.apply_transition") as apply_span:
+            updates: Dict[str, Any] = {"status": target_state}
 
-        temporal = transition_def.get("temporal_fields", {})
-        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            temporal = transition_def.get("temporal_fields", {})
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        for field in temporal.get("set", []):
-            updates[field] = now_iso
-            response["temporal_updates"][field] = now_iso
+            for field in temporal.get("set", []):
+                updates[field] = now_iso
+                response["temporal_updates"][field] = now_iso
 
-        for field in temporal.get("clear", []):
-            updates[field] = None
-            response["temporal_updates"][field] = None
+            for field in temporal.get("clear", []):
+                updates[field] = None
+                response["temporal_updates"][field] = None
 
-        # Used by state machines with increment/reset temporal operations
-        if "increment" in temporal:
-            for field in temporal["increment"]:
-                current_val = int(task.get(field) or 0)
-                updates[field] = current_val + 1
-                response["temporal_updates"][field] = current_val + 1
+            # Used by state machines with increment/reset temporal operations
+            if "increment" in temporal:
+                for field in temporal["increment"]:
+                    current_val = int(task.get(field) or 0)
+                    updates[field] = current_val + 1
+                    response["temporal_updates"][field] = current_val + 1
 
-        if "reset" in temporal:
-            for field in temporal["reset"]:
-                updates[field] = 0
-                response["temporal_updates"][field] = 0
+            if "reset" in temporal:
+                for field in temporal["reset"]:
+                    updates[field] = 0
+                    response["temporal_updates"][field] = 0
 
-        event_payload["result"] = TransitionResult.PASS
-        try:
-            apply_result = self._backend.apply_transition(
-                task_id=task_id,
-                updates=updates,
-                event=event_payload,
-                expected_current_status=from_state,
-            )
-            if not apply_result.get("success"):
-                if apply_result.get("error_code") == ErrorCode.STATE_CONFLICT:
-                    return _error_response(
-                        ErrorCode.STATE_CONFLICT,
-                        (
-                            "Task state changed concurrently during transition. "
-                            f"Expected '{from_state}', found '{apply_result.get('actual_current_status')}'."
-                        ),
-                        from_state=from_state,
-                        to_state=target_state,
-                    )
-                if apply_result.get("error_code") == ErrorCode.EVENT_WRITE_FAILED:
-                    return _error_response(
-                        ErrorCode.EVENT_WRITE_FAILED,
-                        "Transition event persistence failed; transition aborted.",
-                        from_state=from_state,
-                        to_state=target_state,
-                    )
-                return _error_response(ErrorCode.CRUD_FAILED, f"Backend update failed: {apply_result}")
-        except Exception as e:
-            logger.error(f"Atomic transition apply failed: {e}", exc_info=True, extra={"ctx": {"task_id": task_id, "transition_id": transition_def.get("id"), "from_state": from_state, "to_state": target_state}})
-            return _error_response(ErrorCode.CRUD_FAILED, f"Transition apply failed: {e}")
+            event_payload["result"] = TransitionResult.PASS
+            try:
+                apply_result = self._backend.apply_transition(
+                    task_id=task_id,
+                    updates=updates,
+                    event=event_payload,
+                    expected_current_status=from_state,
+                )
+                if not apply_result.get("success"):
+                    apply_span.set_attribute("governor.apply_success", False)
+                    if apply_result.get("error_code") == ErrorCode.STATE_CONFLICT:
+                        return _error_response(
+                            ErrorCode.STATE_CONFLICT,
+                            (
+                                "Task state changed concurrently during transition. "
+                                f"Expected '{from_state}', found '{apply_result.get('actual_current_status')}'."
+                            ),
+                            from_state=from_state,
+                            to_state=target_state,
+                        )
+                    if apply_result.get("error_code") == ErrorCode.EVENT_WRITE_FAILED:
+                        return _error_response(
+                            ErrorCode.EVENT_WRITE_FAILED,
+                            "Transition event persistence failed; transition aborted.",
+                            from_state=from_state,
+                            to_state=target_state,
+                        )
+                    return _error_response(ErrorCode.CRUD_FAILED, f"Backend update failed: {apply_result}")
+                apply_span.set_attribute("governor.apply_success", True)
+            except Exception as e:
+                apply_span.record_exception(e)
+                apply_span.set_attribute("governor.apply_success", False)
+                logger.error(f"Atomic transition apply failed: {e}", exc_info=True, extra={"ctx": {"task_id": task_id, "transition_id": transition_def.get("id"), "from_state": from_state, "to_state": target_state}})
+                return _error_response(ErrorCode.CRUD_FAILED, f"Transition apply failed: {e}")
 
         # 10. Fire post-transition events
-
-        updated_task = task
-        try:
-            updated_task_data = self._backend.get_task(task_id)
-            updated_task = updated_task_data.get("task", task)
-        except Exception as e:
-            logger.warning(f"Failed to reload task '{task_id}' for callbacks (non-fatal): {e}", extra={"ctx": {"task_id": task_id, "transition_id": transition_def.get("id")}})
-        event_params = {**transition_params, "calling_role": effective_role}
-        events_fired = self._fire_events(transition_def, task_id, updated_task, event_params)
-        response["events_fired"] = events_fired
+        with self._tracer.start_as_current_span("governor.fire_callbacks") as cb_span:
+            updated_task = task
+            try:
+                updated_task_data = self._backend.get_task(task_id)
+                updated_task = updated_task_data.get("task", task)
+            except Exception as e:
+                logger.warning(f"Failed to reload task '{task_id}' for callbacks (non-fatal): {e}", extra={"ctx": {"task_id": task_id, "transition_id": transition_def.get("id")}})
+            event_params = {**transition_params, "calling_role": effective_role}
+            events_fired = self._fire_events(transition_def, task_id, updated_task, event_params)
+            response["events_fired"] = events_fired
+            cb_span.set_attribute("governor.events_fired_count", len(events_fired))
 
         return response
 

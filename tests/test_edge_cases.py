@@ -288,3 +288,54 @@ class TestZombieThreadTracking:
         backend = MemoryBackend()
         engine = TransitionEngine(backend=backend)
         assert engine.zombie_thread_count == 0
+
+
+# =====================================================================
+# Fix #9: Field size validation parity across backends
+# =====================================================================
+
+
+class TestFieldSizeValidation:
+    """Memory backends must enforce the same size limit as Neo4j backends."""
+
+    def test_validate_task_data_rejects_oversized_field(self):
+        """validate_task_data catches oversized fields at the base layer."""
+        from governor.backend.base import MAX_FIELD_SIZE
+
+        oversized = "x" * (MAX_FIELD_SIZE + 1)
+        errors = validate_task_data(
+            {"task_id": "T1", "status": "ACTIVE", "content": oversized},
+        )
+        assert any("exceeds maximum size" in e for e in errors)
+
+    def test_validate_task_data_accepts_max_size_field(self):
+        """Fields exactly at the limit should pass."""
+        from governor.backend.base import MAX_FIELD_SIZE
+
+        at_limit = "x" * MAX_FIELD_SIZE
+        errors = validate_task_data(
+            {"task_id": "T1", "status": "ACTIVE", "content": at_limit},
+        )
+        assert not any("exceeds maximum size" in e for e in errors)
+
+    def test_memory_backend_normalize_rejects_oversized(self):
+        """MemoryBackend's normalize function should reject oversized fields."""
+        from governor.backend.memory_backend import _normalize_task_field
+        from governor.backend.base import MAX_FIELD_SIZE
+
+        oversized = "x" * (MAX_FIELD_SIZE + 1)
+        with pytest.raises(ValueError, match="exceeds maximum size"):
+            _normalize_task_field("content", oversized)
+
+    def test_memory_backend_create_rejects_oversized_content(self):
+        """Creating a task with oversized content should fail."""
+        from governor.backend.base import MAX_FIELD_SIZE
+
+        backend = MemoryBackend()
+        oversized = "x" * (MAX_FIELD_SIZE + 1)
+        with pytest.raises(ValueError, match="exceeds maximum size"):
+            backend.create_task({
+                "task_id": "T_BIG",
+                "status": "ACTIVE",
+                "content": oversized,
+            })

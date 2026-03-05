@@ -173,4 +173,26 @@ describe("MemoryBackend", () => {
     expect(await backend.taskExists("TASK_011")).toBe(true);
     expect(await backend.taskExists("NONEXISTENT")).toBe(false);
   });
+
+  it("should reject oversized string fields", async () => {
+    const oversized = "x".repeat(1_000_001);
+    await expect(
+      backend.createTask({
+        task_id: "TASK_BIG",
+        status: "ACTIVE",
+        content: oversized,
+      }),
+    ).rejects.toThrow("exceeds maximum size");
+  });
+
+  it("should accept fields at exactly the size limit", async () => {
+    const atLimit = "x".repeat(1_000_000);
+    await backend.createTask({
+      task_id: "TASK_LIMIT",
+      status: "ACTIVE",
+      content: atLimit,
+    });
+    const result = await backend.getTask("TASK_LIMIT");
+    expect(result.task.content).toHaveLength(1_000_000);
+  });
 });

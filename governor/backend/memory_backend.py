@@ -2,13 +2,18 @@
 
 Stores tasks, reviews, and reports in plain Python dicts.
 No external dependencies required.
+
+Classes:
+    MemoryBackend — Not thread-safe. For single-threaded tests and demos.
+    ThreadSafeMemoryBackend — Uses per-task locking for concurrent access.
 """
 
 import copy
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from governor.backend.base import GovernorBackend, validate_task_data
+from governor.backend.base import GovernorBackend, validate_task_data, MAX_FIELD_SIZE
 
 
 class MemoryBackend(GovernorBackend):
@@ -293,9 +298,116 @@ class MemoryBackend(GovernorBackend):
         return rels
 
 
+class ThreadSafeMemoryBackend(MemoryBackend):
+    """Thread-safe variant of :class:`MemoryBackend`.
+
+    Wraps every public method with a :class:`threading.RLock` so concurrent
+    callers (e.g. multi-threaded agent runners) don't corrupt shared state.
+    Also enables per-task locking via the base class ``_use_task_locks``
+    flag for finer-grained concurrency on ``apply_transition``.
+
+    Performance: the global lock serialises all operations. For high-throughput
+    production use cases, prefer :class:`Neo4jBackend` which offloads
+    concurrency to the database.
+
+    Usage::
+
+        from governor.backend.memory_backend import ThreadSafeMemoryBackend
+
+        backend = ThreadSafeMemoryBackend()
+        # Safe to use from multiple threads.
+    """
+
+    _use_task_locks = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._lock = threading.RLock()
+
+    def get_task(self, task_id: str) -> Dict[str, Any]:
+        with self._lock:
+            return super().get_task(task_id)
+
+    def update_task(
+        self,
+        task_id: str,
+        updates: Dict[str, Any],
+        expected_current_status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            return super().update_task(task_id, updates, expected_current_status)
+
+    def task_exists(self, task_id: str) -> bool:
+        with self._lock:
+            return super().task_exists(task_id)
+
+    def get_reviews_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._lock:
+            return super().get_reviews_for_task(task_id)
+
+    def get_reports_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._lock:
+            return super().get_reports_for_task(task_id)
+
+    def create_task(self, task_data: Dict[str, Any], *, strict: bool = True) -> Dict[str, Any]:
+        with self._lock:
+            return super().create_task(task_data, strict=strict)
+
+    def apply_transition(
+        self,
+        task_id: str,
+        updates: Dict[str, Any],
+        event: Dict[str, Any],
+        expected_current_status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            return super().apply_transition(task_id, updates, event, expected_current_status)
+
+    def add_review(self, task_id: str, review: Dict[str, Any]) -> None:
+        with self._lock:
+            super().add_review(task_id, review)
+
+    def add_report(self, task_id: str, report: Dict[str, Any]) -> None:
+        with self._lock:
+            super().add_report(task_id, report)
+
+    def add_handoff(self, task_id: str, handoff: Dict[str, Any]) -> None:
+        with self._lock:
+            super().add_handoff(task_id, handoff)
+
+    def record_transition_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            return super().record_transition_event(event)
+
+    def get_task_audit_trail(self, task_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        with self._lock:
+            return super().get_task_audit_trail(task_id, limit)
+
+    def get_guard_failure_hotspots(self, limit: int = 10) -> List[Dict[str, Any]]:
+        with self._lock:
+            return super().get_guard_failure_hotspots(limit)
+
+    def get_policy_coverage(self) -> Dict[str, Any]:
+        with self._lock:
+            return super().get_policy_coverage()
+
+    def get_rework_lineage(self, task_id: str) -> Dict[str, Any]:
+        with self._lock:
+            return super().get_rework_lineage(task_id)
+
+    def get_all_tasks(self) -> Dict[str, Dict[str, Any]]:
+        with self._lock:
+            return super().get_all_tasks()
+
+
 def _normalize_task_field(key: str, value: Any) -> Any:
     if value is None:
         return None
+    if isinstance(value, str) and len(value) > MAX_FIELD_SIZE:
+        raise ValueError(
+            f"Field '{key}' exceeds maximum size "
+            f"({len(value)} > {MAX_FIELD_SIZE} chars)"
+        )
     if key in {"task_type", "status", "role", "priority"} and isinstance(value, str):
         return value.strip().upper()
     return value

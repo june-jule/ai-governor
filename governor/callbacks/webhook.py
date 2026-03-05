@@ -28,8 +28,11 @@ The webhook payload is JSON with the following shape::
         "timestamp": "2026-03-03T12:00:00Z"
     }
 
-When ``secret`` is provided, requests include an ``X-Governor-Signature``
-header containing ``sha256=<hex_digest>`` computed over the request body.
+When ``secret`` is provided, requests include:
+
+- ``X-Governor-Timestamp``: Unix epoch seconds when the request was signed
+- ``X-Governor-Signature``: ``sha256=<hex_digest>`` computed over
+  ``<timestamp>.<body>`` to prevent replay attacks
 """
 
 import hashlib
@@ -125,8 +128,11 @@ class WebhookCallback:
         }
 
         if self._secret is not None:
-            signature = hmac.new(self._secret, body, hashlib.sha256).hexdigest()
+            timestamp = str(int(time.time()))
+            signed_payload = f"{timestamp}.".encode("utf-8") + body
+            signature = hmac.new(self._secret, signed_payload, hashlib.sha256).hexdigest()
             headers["X-Governor-Signature"] = f"sha256={signature}"
+            headers["X-Governor-Timestamp"] = timestamp
 
         for attempt in range(1 + self._retry_count):
             try:

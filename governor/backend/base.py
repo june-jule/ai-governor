@@ -23,6 +23,8 @@ _VALID_TASK_TYPES = frozenset({
 })
 _REQUIRED_TASK_FIELDS = ("task_id", "status")
 
+MAX_FIELD_SIZE = 1_000_000  # 1 MB per string field
+
 
 def validate_task_data(task_data: dict, *, strict: bool = True) -> list:
     """Validate task data before persistence.
@@ -39,6 +41,14 @@ def validate_task_data(task_data: dict, *, strict: bool = True) -> list:
     for field in _REQUIRED_TASK_FIELDS:
         if field not in task_data or not task_data[field]:
             errors.append(f"Missing required field: {field}")
+
+    # Field size validation — enforced by all backends for test/prod parity.
+    for key, value in task_data.items():
+        if isinstance(value, str) and len(value) > MAX_FIELD_SIZE:
+            errors.append(
+                f"Field '{key}' exceeds maximum size "
+                f"({len(value)} > {MAX_FIELD_SIZE} chars)"
+            )
 
     if strict:
         status = str(task_data.get("status", "")).strip().upper()

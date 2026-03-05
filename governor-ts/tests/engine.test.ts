@@ -217,4 +217,30 @@ describe("TransitionEngine", () => {
     // Should have multiple guard results (all evaluated)
     expect(result.guard_results!.length).toBe(8);
   });
+
+  it("should include guard ID in resolution error messages (strict mode)", async () => {
+    const strictEngine = new TransitionEngine(backend, { strict: true });
+    await backend.createTask({
+      task_id: "TASK_ERR",
+      task_name: "Error test",
+      task_type: "IMPLEMENTATION",
+      role: "DEVELOPER",
+      status: "ACTIVE",
+      priority: "HIGH",
+      content: "test content",
+    });
+    // getAvailableTransitions returns { task_id, current_state, transitions }
+    const result = await strictEngine.getAvailableTransitions(
+      "TASK_ERR",
+      "EXECUTOR",
+    );
+    expect(result.transitions.length).toBeGreaterThan(0);
+    // Every guard_missing entry should have a non-empty reason and guard_id
+    for (const t of result.transitions) {
+      for (const g of t.guards_missing ?? []) {
+        expect(g.reason).toBeTruthy();
+        expect(g.guard_id).toBeTruthy();
+      }
+    }
+  });
 });

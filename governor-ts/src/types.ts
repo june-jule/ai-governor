@@ -22,6 +22,10 @@ export interface TaskDict {
   last_updated?: string;
   submitted_date?: string;
   completed_date?: string;
+  blocked_date?: string;
+  failed_date?: string;
+  blocking_reason?: string;
+  failure_reason?: string;
   revision_count?: number;
   notes?: string;
   [key: string]: unknown;
@@ -173,10 +177,15 @@ export interface StateMachineDef {
 // ------------------------------------------------------------------
 
 export const TaskState = {
+  PENDING: "PENDING",
   ACTIVE: "ACTIVE",
   READY_FOR_REVIEW: "READY_FOR_REVIEW",
+  READY_FOR_GOVERNOR: "READY_FOR_GOVERNOR",
   COMPLETED: "COMPLETED",
   REWORK: "REWORK",
+  BLOCKED: "BLOCKED",
+  FAILED: "FAILED",
+  ARCHIVED: "ARCHIVED",
 } as const;
 export type TaskState = (typeof TaskState)[keyof typeof TaskState];
 

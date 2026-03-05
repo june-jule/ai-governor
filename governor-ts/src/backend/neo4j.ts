@@ -672,6 +672,24 @@ export class Neo4jBackend extends GovernorBackend {
   }
 
   // ------------------------------------------------------------------
+  // Public query helpers (used by GovernorAnalytics)
+  // ------------------------------------------------------------------
+
+  async runReadQuery(
+    query: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
+    return this._runQuery(query, params, "read");
+  }
+
+  async runWriteQuery(
+    query: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
+    return this._runQuery(query, params, "write");
+  }
+
+  // ------------------------------------------------------------------
   // Internal query helpers
   // ------------------------------------------------------------------
 
@@ -755,6 +773,6 @@ export class Neo4jBackend extends GovernorBackend {
   /** Convert a number to a Neo4j integer for LIMIT/SKIP params. */
   private _int(n: number): unknown {
     if (neo4j) return neo4j.default.int(n);
-    return n;
+    throw new Error("Neo4j driver not loaded. Ensure the backend is initialized before querying.");
   }
 }

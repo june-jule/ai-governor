@@ -15,8 +15,15 @@ import type {
   GuardResultDict,
 } from "../types.js";
 
+const MAX_FIELD_SIZE = 1_000_000;
+
 function normalizeField(key: string, value: unknown): unknown {
   if (value == null) return value;
+  if (typeof value === "string" && value.length > MAX_FIELD_SIZE) {
+    throw new Error(
+      `Field '${key}' exceeds maximum size (${value.length} > ${MAX_FIELD_SIZE} chars)`,
+    );
+  }
   if (
     ["task_type", "status", "role", "priority"].includes(key) &&
     typeof value === "string"
@@ -27,6 +34,7 @@ function normalizeField(key: string, value: unknown): unknown {
 }
 
 function deepClone<T>(obj: T): T {
+  if (typeof structuredClone === "function") return structuredClone(obj);
   return JSON.parse(JSON.stringify(obj));
 }
 

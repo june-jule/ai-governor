@@ -273,9 +273,10 @@ export class TransitionEngine {
           resolveGuard(ref, this._strict, this._instanceGuardRegistry),
         );
       } catch (err) {
+        const refId = typeof ref === "string" ? ref : (ref as { guard_id?: string }).guard_id ?? "unknown";
         return errorResponse(
           ErrorCode.GUARD_NOT_FOUND,
-          `Guard resolution failed: ${err instanceof Error ? err.message : String(err)}`,
+          `Guard '${refId}' resolution failed: ${err instanceof Error ? err.message : String(err)}`,
           { task_id: taskId, transition_id: transitionDef.id },
         );
       }
@@ -433,12 +434,12 @@ export class TransitionEngine {
           } else {
             guardsMissing.push(dict);
           }
-        } catch {
+        } catch (err) {
           guardsMissing.push({
             guard_id: typeof ref === "string" ? ref : (ref as { guard_id?: string }).guard_id ?? "unknown",
             passed: false,
-            reason: "Guard resolution error",
-            fix_hint: "",
+            reason: `Guard resolution error: ${err instanceof Error ? err.message : String(err)}`,
+            fix_hint: "Register this guard or check the guard ID spelling.",
           });
         }
       }

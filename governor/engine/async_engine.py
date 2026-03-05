@@ -263,20 +263,48 @@ class AsyncTransitionEngine:
         """Execute (or dry-run) a state transition. Async version."""
         transition_params = transition_params or {}
 
+        with self._tracer.start_as_current_span("governor.transition") as _root_span:
+            _root_span.set_attribute("governor.task_id", task_id)
+            _root_span.set_attribute("governor.target_state", target_state)
+            _root_span.set_attribute("governor.calling_role", calling_role)
+            _root_span.set_attribute("governor.dry_run", dry_run)
+            return await self._do_transition(
+                task_id, target_state, calling_role, dry_run, transition_params, _root_span,
+            )
+
+    async def _do_transition(
+        self,
+        task_id: str,
+        target_state: str,
+        calling_role: str,
+        dry_run: bool,
+        transition_params: Dict[str, Any],
+        _span: Any,
+    ) -> Dict[str, Any]:
+        """Inner transition logic — extracted to avoid re-indenting the entire method."""
+
         # 0. Rate-limit check (before any backend call)
         if self._rate_limiter is not None and not self._rate_limiter.check(task_id):
+            _span.set_attribute("governor.result", "RATE_LIMITED")
             return _error_response(
                 "RATE_LIMITED",
                 f"Too many transition attempts for task '{task_id}'. Try again later.",
             )
 
-        try:
-            task_data = await self._backend.get_task(task_id)
-        except ValueError as e:
-            return _error_response("TASK_NOT_FOUND", str(e))
-        except Exception as e:
-            logger.error(f"Backend read failed for task '{task_id}': {e}", exc_info=True)
-            return _error_response("BACKEND_ERROR", f"Backend read failed: {e}")
+        with self._tracer.start_as_current_span("governor.load_task") as load_span:
+            try:
+                task_data = await self._backend.get_task(task_id)
+                load_span.set_attribute("governor.task_found", True)
+            except ValueError as e:
+                load_span.set_attribute("governor.task_found", False)
+                _span.set_attribute("governor.result", "TASK_NOT_FOUND")
+                return _error_response("TASK_NOT_FOUND", str(e))
+            except Exception as e:
+                load_span.set_attribute("governor.task_found", False)
+                load_span.record_exception(e)
+                _span.set_attribute("governor.result", "BACKEND_ERROR")
+                logger.error(f"Backend read failed for task '{task_id}': {e}", exc_info=True)
+                return _error_response("BACKEND_ERROR", f"Backend read failed: {e}")
 
         task = task_data["task"]
         from_state = _normalize_state(task.get("status"))
@@ -316,28 +344,33 @@ class AsyncTransitionEngine:
                 )
             resolved_guards.append((guard_id, guard_fn))
 
-        guard_results: List[GuardResult] = []
-        if self._parallel_guards and len(resolved_guards) > 1:
-            guard_tasks = [
-                self._evaluate_single_guard(guard_id, guard_fn, ctx, task_id, transition_def.get("id", ""))
-                for guard_id, guard_fn in resolved_guards
-            ]
-            guard_results = list(await asyncio.gather(*guard_tasks))
-        else:
-            for guard_id, guard_fn in resolved_guards:
-                result = await self._evaluate_single_guard(
-                    guard_id,
-                    guard_fn,
-                    ctx,
-                    task_id,
-                    transition_def.get("id", ""),
-                )
-                guard_results.append(result)
+        with self._tracer.start_as_current_span("governor.evaluate_guards") as guards_span:
+            guards_span.set_attribute("governor.guard_count", len(resolved_guards))
+            guards_span.set_attribute("governor.parallel", self._parallel_guards)
+            guard_results: List[GuardResult] = []
+            if self._parallel_guards and len(resolved_guards) > 1:
+                guard_tasks = [
+                    self._evaluate_single_guard(guard_id, guard_fn, ctx, task_id, transition_def.get("id", ""))
+                    for guard_id, guard_fn in resolved_guards
+                ]
+                guard_results = list(await asyncio.gather(*guard_tasks))
+            else:
+                for guard_id, guard_fn in resolved_guards:
+                    result = await self._evaluate_single_guard(
+                        guard_id,
+                        guard_fn,
+                        ctx,
+                        task_id,
+                        transition_def.get("id", ""),
+                    )
+                    guard_results.append(result)
 
-        # Ensure deterministic ordering for parallel evaluation so that
-        # rejection_reason always reports the same failing guard.
-        if self._parallel_guards and len(guard_results) > 1:
-            guard_results.sort(key=lambda gr: gr.guard_id)
+            # Ensure deterministic ordering for parallel evaluation so that
+            # rejection_reason always reports the same failing guard.
+            if self._parallel_guards and len(guard_results) > 1:
+                guard_results.sort(key=lambda gr: gr.guard_id)
+            guards_span.set_attribute("governor.guards_passed", sum(1 for g in guard_results if g.passed))
+            guards_span.set_attribute("governor.guards_failed", sum(1 for g in guard_results if not g.passed))
 
         # Compute overall PASS/FAIL (supports AND/OR guard composition)
         guard_mode = transition_def.get("guard_mode", "AND").upper()
@@ -384,74 +417,87 @@ class AsyncTransitionEngine:
         }
 
         if dry_run or overall_result == "FAIL":
+            _span.set_attribute("governor.result", overall_result)
+            _span.set_attribute("governor.from_state", from_state)
             try:
                 await self._backend.record_transition_event(event_payload)
             except Exception as e:
                 logger.warning(f"Failed to record transition event for task '{task_id}': {e}")
             return response
 
-        updates: Dict[str, Any] = {"status": target_state}
-        temporal = transition_def.get("temporal_fields", {})
-        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # 9. Apply state change via backend
+        with self._tracer.start_as_current_span("governor.apply_transition") as apply_span:
+            updates: Dict[str, Any] = {"status": target_state}
+            temporal = transition_def.get("temporal_fields", {})
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        for field in temporal.get("set", []):
-            updates[field] = now_iso
-            response["temporal_updates"][field] = now_iso
-        for field in temporal.get("clear", []):
-            updates[field] = None
-            response["temporal_updates"][field] = None
-        if "increment" in temporal:
-            for field in temporal["increment"]:
-                current_val = int(task.get(field) or 0)
-                updates[field] = current_val + 1
-                response["temporal_updates"][field] = current_val + 1
-        if "reset" in temporal:
-            for field in temporal["reset"]:
-                updates[field] = 0
-                response["temporal_updates"][field] = 0
+            for field in temporal.get("set", []):
+                updates[field] = now_iso
+                response["temporal_updates"][field] = now_iso
+            for field in temporal.get("clear", []):
+                updates[field] = None
+                response["temporal_updates"][field] = None
+            if "increment" in temporal:
+                for field in temporal["increment"]:
+                    current_val = int(task.get(field) or 0)
+                    updates[field] = current_val + 1
+                    response["temporal_updates"][field] = current_val + 1
+            if "reset" in temporal:
+                for field in temporal["reset"]:
+                    updates[field] = 0
+                    response["temporal_updates"][field] = 0
 
-        event_payload["result"] = "PASS"
-        try:
-            apply_result = await self._backend.apply_transition(
-                task_id=task_id,
-                updates=updates,
-                event=event_payload,
-                expected_current_status=from_state,
-            )
-            if not apply_result.get("success"):
-                if apply_result.get("error_code") == "STATE_CONFLICT":
-                    return _error_response(
-                        "STATE_CONFLICT",
-                        (
-                            "Task state changed concurrently during transition. "
-                            f"Expected '{from_state}', found '{apply_result.get('actual_current_status')}'."
-                        ),
-                        from_state=from_state,
-                        to_state=target_state,
-                    )
-                if apply_result.get("error_code") == "EVENT_WRITE_FAILED":
-                    return _error_response(
-                        "EVENT_WRITE_FAILED",
-                        "Transition event persistence failed; transition aborted.",
-                        from_state=from_state,
-                        to_state=target_state,
-                    )
-                return _error_response("CRUD_FAILED", f"Backend update failed: {apply_result}")
-        except Exception as e:
-            logger.error(f"Atomic transition apply failed: {e}", exc_info=True)
-            return _error_response("CRUD_FAILED", f"Transition apply failed: {e}")
+            event_payload["result"] = "PASS"
+            try:
+                apply_result = await self._backend.apply_transition(
+                    task_id=task_id,
+                    updates=updates,
+                    event=event_payload,
+                    expected_current_status=from_state,
+                )
+                if not apply_result.get("success"):
+                    apply_span.set_attribute("governor.apply_success", False)
+                    if apply_result.get("error_code") == "STATE_CONFLICT":
+                        return _error_response(
+                            "STATE_CONFLICT",
+                            (
+                                "Task state changed concurrently during transition. "
+                                f"Expected '{from_state}', found '{apply_result.get('actual_current_status')}'."
+                            ),
+                            from_state=from_state,
+                            to_state=target_state,
+                        )
+                    if apply_result.get("error_code") == "EVENT_WRITE_FAILED":
+                        return _error_response(
+                            "EVENT_WRITE_FAILED",
+                            "Transition event persistence failed; transition aborted.",
+                            from_state=from_state,
+                            to_state=target_state,
+                        )
+                    return _error_response("CRUD_FAILED", f"Backend update failed: {apply_result}")
+                apply_span.set_attribute("governor.apply_success", True)
+            except Exception as e:
+                apply_span.record_exception(e)
+                apply_span.set_attribute("governor.apply_success", False)
+                logger.error(f"Atomic transition apply failed: {e}", exc_info=True)
+                return _error_response("CRUD_FAILED", f"Transition apply failed: {e}")
 
-        updated_task = task
-        try:
-            updated_task_data = await self._backend.get_task(task_id)
-            updated_task = updated_task_data.get("task", task)
-        except Exception as e:
-            logger.warning(f"Failed to reload task '{task_id}' for callbacks (non-fatal): {e}")
+        # 10. Fire post-transition events
+        with self._tracer.start_as_current_span("governor.fire_callbacks") as cb_span:
+            updated_task = task
+            try:
+                updated_task_data = await self._backend.get_task(task_id)
+                updated_task = updated_task_data.get("task", task)
+            except Exception as e:
+                logger.warning(f"Failed to reload task '{task_id}' for callbacks (non-fatal): {e}")
 
-        event_params = {**transition_params, "calling_role": effective_role}
-        events_fired = await self._fire_events(transition_def, task_id, updated_task, event_params)
-        response["events_fired"] = events_fired
+            event_params = {**transition_params, "calling_role": effective_role}
+            events_fired = await self._fire_events(transition_def, task_id, updated_task, event_params)
+            response["events_fired"] = events_fired
+            cb_span.set_attribute("governor.events_fired_count", len(events_fired))
 
+        _span.set_attribute("governor.result", overall_result)
+        _span.set_attribute("governor.from_state", from_state)
         return response
 
     async def get_available_transitions(

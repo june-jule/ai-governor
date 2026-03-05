@@ -23,7 +23,7 @@ Your agents produce output. But who checks it before it hits production?
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-403%20passing-brightgreen.svg)](#running-tests)
+[![Tests](https://img.shields.io/badge/tests-447%20passing-brightgreen.svg)](#running-tests)
 
 <p align="center">
   <img src="docs/assets/governor_lifecycle_demo.gif" alt="Governor lifecycle demo — guard failure, rework, and pass" width="720">
@@ -546,7 +546,7 @@ governor/
 ├── schema/                 # neo4j_schema.cypher
 ├── docs/                   # Architecture docs
 ├── examples/               # Runnable demo scripts
-├── tests/                  # 403 pytest tests
+├── tests/                  # 447 pytest tests
 ├── pyproject.toml
 ├── LICENSE
 └── README.md
@@ -564,7 +564,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-403 tests covering engine, guards, scoring, validation, async support, Neo4j
+447 tests covering engine, guards, scoring, validation, async support, Neo4j
 backend (mocked), MCP tools, and error boundaries.
 
 ---

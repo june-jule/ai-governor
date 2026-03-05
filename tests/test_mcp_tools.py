@@ -1109,3 +1109,51 @@ class TestCrossToolIntegration:
             task_id="TASK_001", target_state=target, calling_role="EXECUTOR"
         )
         assert result["result"] == "PASS"
+
+
+# ===========================================================================
+# Warning field documentation tests
+# ===========================================================================
+
+
+class TestWarningFieldDocumentation:
+    """Verify that MCP tool descriptions document the warning field."""
+
+    def test_transition_tool_description_mentions_warning(self):
+        """governor_transition_task description should document warning field."""
+        _, engine = _make_engine()
+        tools = {t["name"]: t for t in create_governor_tools(engine)}
+        desc = tools["governor_transition_task"]["description"]
+        assert "warning" in desc.lower()
+
+    def test_available_transitions_description_mentions_guard_warnings(self):
+        """governor_get_available_transitions description should document guard_warnings."""
+        _, engine = _make_engine()
+        tools = {t["name"]: t for t in create_governor_tools(engine)}
+        desc = tools["governor_get_available_transitions"]["description"]
+        assert "guard_warnings" in desc
+        assert "warnings_count" in desc
+
+    def test_transition_result_includes_warning_field_in_guard_results(self):
+        """Guard results from transition should include warning boolean."""
+        backend, _, tools = _make_tools()
+        _prepare_submittable_task(backend)
+        result = tools["governor_transition_task"]["handler"](
+            task_id="TASK_001", target_state="READY_FOR_REVIEW",
+            calling_role="EXECUTOR", dry_run=True,
+        )
+        assert result["result"] == "PASS"
+        for gr in result["guard_results"]:
+            assert "warning" in gr, f"Guard {gr['guard_id']} missing 'warning' field"
+            assert isinstance(gr["warning"], bool)
+
+    def test_available_transitions_includes_guard_warnings_key(self):
+        """Available transitions response should include guard_warnings array."""
+        backend, _, tools = _make_tools()
+        _prepare_submittable_task(backend)
+        result = tools["governor_get_available_transitions"]["handler"](
+            task_id="TASK_001", calling_role="EXECUTOR",
+        )
+        for t in result["transitions"]:
+            assert "guard_warnings" in t, f"Transition {t['transition_id']} missing 'guard_warnings'"
+            assert "warnings_count" in t, f"Transition {t['transition_id']} missing 'warnings_count'"

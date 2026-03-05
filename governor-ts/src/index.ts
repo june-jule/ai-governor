@@ -83,3 +83,14 @@ export { registerBuiltinGuards } from "./guards/executor.js";
 
 // Validation
 export { validateStateMachine } from "./engine/validation.js";
+
+// Scoring
+export { ScoringRubric } from "./scoring/rubric.js";
+export type { RubricDef, RubricCategoryDef, Deduction, ScoreResult } from "./scoring/rubric.js";
+
+// MCP
+export { createGovernorTools } from "./mcp/tools.js";
+export type { McpToolDefinition } from "./mcp/tools.js";
+
+// Analytics
+export { GovernorAnalytics } from "./analytics/graph_algorithms.js";

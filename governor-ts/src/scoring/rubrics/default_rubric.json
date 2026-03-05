@@ -1,0 +1,37 @@
+{
+  "rubric_name": "default",
+  "version": "1.0",
+  "description": "Default scoring rubric. Base = 85 points, Excellence = +15.",
+  "base_score": 85,
+  "excellence_max": 15,
+  "evidence_gate": 80,
+  "categories": {
+    "completion_gate": {
+      "max_points": 20,
+      "description": "All phases/steps marked complete, all deliverables exist."
+    },
+    "core_execution": {
+      "max_points": 20,
+      "description": "Correctness and completeness of the work."
+    },
+    "code_quality": {
+      "max_points": 25,
+      "description": "No linter errors, type safety, error handling, structure."
+    },
+    "documentation_quality": {
+      "max_points": 20,
+      "description": "Clarity and maintainability of documentation."
+    }
+  },
+  "rating_thresholds": {
+    "EXCEPTIONAL": 95,
+    "EXCELLENT": 85
+  },
+  "deduction_types": {
+    "generic_evidence": { "points": 10, "description": "Citing 'manual check' without logs/diffs." },
+    "placeholder_text": { "points": 10, "description": "[TODO], [PLACEHOLDER], TBD in deliverables." },
+    "linter_errors": { "points": 5, "description": "Linter errors in final files." },
+    "broken_paths": { "points": 5, "description": "Referenced files do not exist." },
+    "missing_notes": { "points": 5, "description": "Task notes missing required sections." }
+  }
+}

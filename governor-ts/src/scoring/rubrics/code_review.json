@@ -1,0 +1,25 @@
+{
+  "rubric_name": "code_review",
+  "version": "1.0",
+  "description": "Scoring rubric for code review tasks.",
+  "base_score": 85,
+  "excellence_max": 15,
+  "categories": {
+    "review_coverage": {
+      "max_points": 25,
+      "description": "All files in scope reviewed."
+    },
+    "issue_identification": {
+      "max_points": 25,
+      "description": "Bugs, security issues, and anti-patterns caught."
+    },
+    "actionable_feedback": {
+      "max_points": 20,
+      "description": "Feedback is specific and actionable."
+    },
+    "documentation": {
+      "max_points": 15,
+      "description": "Review documented with clear rationale."
+    }
+  }
+}
