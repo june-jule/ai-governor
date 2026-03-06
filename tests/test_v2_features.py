@@ -11,7 +11,6 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 from governor.backend.memory_backend import MemoryBackend
 from governor.engine.transition_engine import (
     TransitionEngine,
@@ -19,7 +18,6 @@ from governor.engine.transition_engine import (
     _guard_registry,
     _guard_registry_lock,
     register_guard,
-    GuardContext,
     GuardResult,
 )
 
@@ -475,7 +473,7 @@ class TestWebhookCallback:
         from governor.callbacks.webhook import WebhookCallback
 
         secret = "test-secret"
-        webhook = WebhookCallback(url="http://localhost:9999", secret=secret)
+        WebhookCallback(url="http://localhost:9999", secret=secret)
 
         # Just verify the signing logic doesn't crash
         payload = {"event_type": "test", "task_id": "T1", "timestamp": "2026-01-01"}

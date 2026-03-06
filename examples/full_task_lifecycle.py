@@ -84,7 +84,7 @@ def main():
 
     # --- Step 2: Check available transitions ---
     # Before attempting a transition, check what's possible and what guards are unmet.
-    print(f"\n[2] Available transitions for EXECUTOR from ACTIVE:")
+    print("\n[2] Available transitions for EXECUTOR from ACTIVE:")
     available = engine.get_available_transitions(task_id, "DEVELOPER")
     for t in available["transitions"]:
         status = "READY" if t["ready"] else f"NOT READY ({len(t['guards_missing'])} guards unmet)"
@@ -102,7 +102,7 @@ def main():
 
     # --- Step 4: Try submitting WITHOUT a self-review (should fail) ---
     # EG-01 requires a SELF_REVIEW before submission. Let's see the guard fail.
-    print(f"\n[4] Submit without self-review (expect failure):")
+    print("\n[4] Submit without self-review (expect failure):")
     result = engine.transition_task(task_id, "READY_FOR_REVIEW", "DEVELOPER")
     print(f"    Result: {result['result']}")
     for gr in result["guard_results"]:
@@ -126,7 +126,7 @@ def main():
         "rating": 8.5,
         "content": "Implemented OAuth2 PKCE flow. All 12 tests pass. Edge cases covered.",
     })
-    print(f"\n[5] Added report + self-review (EG-01 and EG-03 now satisfied)")
+    print("\n[5] Added report + self-review (EG-01 and EG-03 now satisfied)")
     if args.apply_fixes:
         print("    apply_fixes enabled: demo auto-applies remediation steps.")
 
@@ -144,7 +144,7 @@ def main():
     result = engine.transition_task(task_id, "COMPLETED", "REVIEWER")
     print(f"\n[6] Reviewer approves: {result['result']}")
     if result["result"] == "PASS":
-        print(f"    Task COMPLETED!")
+        print("    Task COMPLETED!")
         print(f"    Temporal updates: {result['temporal_updates']}")
         print(f"    Events fired: {result['events_fired']}")
     else:

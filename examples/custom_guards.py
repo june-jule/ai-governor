@@ -117,7 +117,7 @@ def main():
     print("=" * 60)
 
     backend = MemoryBackend()
-    engine = TransitionEngine(
+    _engine = TransitionEngine(  # noqa: F841  (constructed for guard registration side-effect)
         backend=backend,
         role_aliases={"DEVELOPER": "EXECUTOR"},
     )
@@ -139,7 +139,7 @@ def main():
     ctx = GuardContext("TASK_SHORT", task_data)
     result = guard_content_minimum_length(ctx)
 
-    print(f"\n--- CUSTOM-01: Content Length ---")
+    print("\n--- CUSTOM-01: Content Length ---")
     print(f"Guard:  {result.guard_id}")
     print(f"Passed: {result.passed}")
     print(f"Reason: {result.reason}")
@@ -160,14 +160,14 @@ def main():
     ctx = GuardContext("TASK_SHORT", task_data)
     result = guard_min_self_review_rating(ctx)
 
-    print(f"\n--- CUSTOM-02: Minimum Rating (low rating) ---")
+    print("\n--- CUSTOM-02: Minimum Rating (low rating) ---")
     print(f"Passed: {result.passed}")
     print(f"Reason: {result.reason}")
 
     # --- Test CUSTOM-03: Warning guard ---
     result = guard_recommend_report(ctx)
 
-    print(f"\n--- CUSTOM-03: Report Advisory (warning) ---")
+    print("\n--- CUSTOM-03: Report Advisory (warning) ---")
     print(f"Passed:  {result.passed} (passes even without report)")
     print(f"Warning: {result.warning}")
     print(f"Reason:  {result.reason}")

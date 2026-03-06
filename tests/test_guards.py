@@ -4,8 +4,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-from governor.engine.transition_engine import GuardContext, GuardResult
+from governor.engine.transition_engine import GuardContext
 
 # Import guards to register them
 import governor.guards.executor_guards as eg

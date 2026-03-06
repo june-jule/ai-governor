@@ -1,6 +1,5 @@
 """Tests for state machine JSON validation."""
 
-import pytest
 
 from governor.engine.validation import validate_state_machine
 

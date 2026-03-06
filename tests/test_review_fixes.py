@@ -15,13 +15,10 @@ I7: Query rate limiting at backend level
 
 import asyncio
 import collections
-import json
 import logging
 import logging.config
 import os
 import sys
-import tempfile
-import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

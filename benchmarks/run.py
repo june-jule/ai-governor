@@ -102,10 +102,6 @@ def run_fixtures(fixtures_path: Path) -> Dict[str, Any]:
         sys.path.insert(0, repo_root_str)
 
     # Import from the benchmark-local engine (self-contained, no Neo4j needed).
-    from benchmarks.bench_engine import (
-        GuardContext, GuardResult, _resolve_guard, _load_state_machine,
-        _compute_transition_score,
-    )
     import benchmarks.bench_engine as te
 
     cases = _read_jsonl(fixtures_path)

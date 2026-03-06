@@ -9,7 +9,6 @@ Requires GOVERNOR_NEO4J_URI to be set. See conftest.py for details.
 import uuid
 from datetime import datetime, timezone
 
-import pytest
 
 from tests.integration.conftest import requires_neo4j
 

@@ -27,7 +27,6 @@ from governor.engine.transition_engine import (
     _load_state_machine,
     _error_response,
     _render_template,
-    _resolve_guard,
     _guard_registry,
     _ensure_builtin_guards_loaded,
     _normalize_state,

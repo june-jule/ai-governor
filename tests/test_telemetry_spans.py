@@ -5,8 +5,6 @@ exceptions to verify span hierarchy and metadata without requiring
 the opentelemetry-api package.
 """
 
-import pytest
-from unittest.mock import MagicMock
 from contextlib import contextmanager
 
 from governor.backend.memory_backend import MemoryBackend
@@ -206,7 +204,7 @@ class TestTransitionSpans:
     def test_task_not_found_sets_span_attribute(self):
         backend, engine, tracer = _make_engine_with_fake_tracer()
 
-        result = engine.transition_task("NONEXISTENT", "ACTIVE", "ORCHESTRATOR")
+        engine.transition_task("NONEXISTENT", "ACTIVE", "ORCHESTRATOR")
 
         root = next(s for s in tracer.spans if s.name == "governor.transition")
         assert root.attributes.get("governor.result") == "TASK_NOT_FOUND"

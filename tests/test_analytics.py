@@ -4,8 +4,6 @@ Tests the GovernorAnalytics class methods that work without Neo4j GDS.
 Uses the MemoryBackend with monkey-patched _run_query for Cypher simulation.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from governor.analytics.graph_algorithms import GovernorAnalytics
 
 

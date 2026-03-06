@@ -197,14 +197,14 @@ def main():
         print("    Task created in AuraDB (status=ACTIVE)")
 
         # -- Check available transitions --
-        print(f"\n[4] Available transitions from ACTIVE:")
+        print("\n[4] Available transitions from ACTIVE:")
         available = engine.get_available_transitions(task_id, "DEVELOPER")
         for t in available["transitions"]:
             status = "READY" if t["ready"] else f"NOT READY ({len(t['guards_missing'])} guards unmet)"
             print(f"    -> {t['target_state']:25s} {status}")
 
         # -- Add self-review (satisfies EG-01) --
-        print(f"\n[5] Adding self-review and report...")
+        print("\n[5] Adding self-review and report...")
         backend.add_review(task_id, {
             "review_type": "SELF_REVIEW",
             "reviewer_role": "DEVELOPER",
@@ -220,7 +220,7 @@ def main():
         print("    Self-review and report persisted to AuraDB.")
 
         # -- Dry-run submission --
-        print(f"\n[6] Dry-run submission (validate without state change):")
+        print("\n[6] Dry-run submission (validate without state change):")
         dry_result = engine.transition_task(task_id, "READY_FOR_REVIEW", "DEVELOPER", dry_run=True)
         print(f"    Dry-run result: {dry_result['result']}")
         for gr in dry_result["guard_results"]:
@@ -228,7 +228,7 @@ def main():
             print(f"    [{icon}] {gr['guard_id']}: {gr['reason'][:60]}")
 
         # -- Submit for review (ACTIVE -> READY_FOR_REVIEW) --
-        print(f"\n[7] Submitting for review:")
+        print("\n[7] Submitting for review:")
         result = engine.transition_task(task_id, "READY_FOR_REVIEW", "DEVELOPER")
         print(f"    Result: {result['result']}")
         if result["result"] == "FAIL":
@@ -242,7 +242,7 @@ def main():
         print(f"    Temporal updates: {result.get('temporal_updates', {})}")
 
         # -- Reviewer approves (READY_FOR_REVIEW -> COMPLETED) --
-        print(f"\n[8] Reviewer approves:")
+        print("\n[8] Reviewer approves:")
         result = engine.transition_task(task_id, "COMPLETED", "REVIEWER")
         print(f"    Result: {result['result']}")
         if result["result"] == "PASS":
@@ -251,7 +251,7 @@ def main():
         # ==============================================================
         # Step 6: Verify final state in AuraDB
         # ==============================================================
-        print(f"\n[9] Final task state from AuraDB:")
+        print("\n[9] Final task state from AuraDB:")
         task_data = backend.get_task(task_id)
         task = task_data["task"]
         print(f"    Status:     {task['status']}")
@@ -261,7 +261,7 @@ def main():
         # ==============================================================
         # Step 7: Query the audit trail (graph-powered)
         # ==============================================================
-        print(f"\n[10] Audit trail from AuraDB:")
+        print("\n[10] Audit trail from AuraDB:")
         trail = backend.get_task_audit_trail(task_id)
         for event in trail:
             guards_passed = sum(1 for g in event.get("guard_results", []) if g.get("passed"))

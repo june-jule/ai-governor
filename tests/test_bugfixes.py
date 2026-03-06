@@ -18,17 +18,14 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 
 from governor.backend.memory_backend import MemoryBackend
 from governor.backend.base import GovernorBackend
 from governor.engine.transition_engine import (
-    GuardContext,
     GuardResult,
     TransitionEngine,
     _get_nested,
     _guard_registry,
-    register_guard,
 )
 
 import governor.guards.executor_guards  # noqa: F401

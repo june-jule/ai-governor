@@ -27,11 +27,10 @@ available at the default Prometheus scrape endpoint. Without it,
 """
 
 import threading
-import time
 from typing import Any, Dict, Optional
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge, Info  # type: ignore[import-untyped]
+    from prometheus_client import Counter, Histogram, Gauge  # type: ignore[import-untyped]
     _HAS_PROMETHEUS = True
 except ImportError:
     _HAS_PROMETHEUS = False

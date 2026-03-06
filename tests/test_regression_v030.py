@@ -14,13 +14,12 @@ Bug 2H: Relationship truncation metadata     (neo4j_backend.py)
 Bug 2I: Regex DoS in deliverables            (executor_guards.py)
 """
 
-import collections
 import json
 import os
 import sys
 import tempfile
 import time
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -542,7 +541,6 @@ class TestBug2D_EnsureSchemaErrorReporting:
 
         # Patch _run_write_query to raise for every call, simulating
         # schema statement execution failure.
-        original_run_write = backend._run_write_query
         backend._run_write_query = MagicMock(
             side_effect=RuntimeError("Constraint creation failed")
         )
@@ -855,7 +853,7 @@ class TestBug2I_RegexDoSDeliverables:
         """Alternating backtick patterns should not cause catastrophic backtracking."""
         adversarial_content = ("``` " * 5000) + "\n## Deliverables\n- file.txt\n"
         start = time.monotonic()
-        result = _parse_deliverables_from_content(adversarial_content)
+        _parse_deliverables_from_content(adversarial_content)
         elapsed = time.monotonic() - start
         assert elapsed < 2.0, (
             f"_parse_deliverables_from_content took {elapsed:.2f}s; expected < 2.0s"

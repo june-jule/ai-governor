@@ -64,7 +64,7 @@ def main():
     result = engine.transition_task(task_id, "READY_FOR_REVIEW", "REVIEWER")
     print(f"\n[1] REVIEWER tries to submit: {result['result']}")
     print(f"    Error: {result.get('error_code', 'N/A')}")
-    print(f"    REVIEWER is only allowed for review transitions (T02, T03)")
+    print("    REVIEWER is only allowed for review transitions (T02, T03)")
 
     # --- Demo 2: DEV submits (DEV -> EXECUTOR) ---
     backend.add_review(task_id, {
@@ -76,7 +76,7 @@ def main():
     })
     result = engine.transition_task(task_id, "READY_FOR_REVIEW", "DEV")
     print(f"\n[2] DEV submits:        {result['result']}")
-    print(f"    DEV is aliased to EXECUTOR (allowed for submission)")
+    print("    DEV is aliased to EXECUTOR (allowed for submission)")
 
     # --- Demo 3: REVIEWER approves ---
     result = engine.transition_task(task_id, "COMPLETED", "REVIEWER")
@@ -107,7 +107,7 @@ def main():
         "content": "Initial implementation done.",
     })
     engine.transition_task(task2_id, "READY_FOR_REVIEW", "SRE")
-    print(f"\n[4] SRE submits:        PASS (SRE -> EXECUTOR)")
+    print("\n[4] SRE submits:        PASS (SRE -> EXECUTOR)")
 
     # Reviewer requests rework (T03: READY_FOR_REVIEW -> REWORK)
     result = engine.transition_task(task2_id, "REWORK", "REVIEWER")
@@ -130,9 +130,9 @@ def main():
     print(f"{'=' * 60}")
     for alias, canonical in sorted(role_aliases.items()):
         print(f"  {alias:15s} -> {canonical}")
-    print(f"\nCanonical roles in state machine:")
-    print(f"  EXECUTOR — submit for review (T01), resubmit after rework (T04)")
-    print(f"  REVIEWER — approve (T02), request rework (T03)")
+    print("\nCanonical roles in state machine:")
+    print("  EXECUTOR — submit for review (T01), resubmit after rework (T04)")
+    print("  REVIEWER — approve (T02), request rework (T03)")
     print("=" * 60)
 
 

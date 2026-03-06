@@ -115,4 +115,4 @@ if __name__ == "__main__":
         self_review_rating=8.5,
     )
     print(f"Result: {r2['result']}")
-    print(f"\nAgent learned from guard feedback and self-corrected.")
+    print("\nAgent learned from guard feedback and self-corrected.")
