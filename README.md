@@ -494,14 +494,6 @@ MATCH (blocked:Task)-[:DEPENDS_ON*]->(root:Task {task_id: $task_id})
 RETURN blocked.task_id, blocked.task_name, blocked.status
 ```
 
-### What Your Audit Trail Looks Like
-
-<p align="center">
-  <img src="docs/assets/neo4j_review_graph.png" alt="Neo4j graph — Task node with three scored Reviews linked to the Governor agent" width="600">
-</p>
-
-> A Task with three Reviews (scored 72, 78, 90), each linked to the Governor agent via `WRITTEN_BY` and `REVIEWED_BY` relationships. One Cypher query returns the entire subgraph: `MATCH (t:Task {task_id: $id})-[r]->(n) RETURN *`. In SQL this would span 3+ tables with JOINs — in Neo4j it's a single traversal.
-
 ### Getting Started with Neo4j
 
 Governor ships with a Neo4j backend. The in-memory backend works for development
