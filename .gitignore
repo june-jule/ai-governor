@@ -19,9 +19,13 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*.log
 
 # Environment
 .env
+.env.*
 .venv/
 venv/
 

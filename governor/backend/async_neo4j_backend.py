@@ -11,14 +11,14 @@ Usage::
     backend = AsyncNeo4jBackend(
         uri="neo4j://localhost:7687",
         user="neo4j",
-        password="password",
+        password="<your-password>",
     )
 
 Or from environment variables::
 
     export GOVERNOR_NEO4J_URI=neo4j://localhost:7687
     export GOVERNOR_NEO4J_USER=neo4j
-    export GOVERNOR_NEO4J_PASSWORD=password
+    export GOVERNOR_NEO4J_PASSWORD=<your-password>
 
     backend = AsyncNeo4jBackend.from_env()
 """
