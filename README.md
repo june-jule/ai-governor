@@ -23,7 +23,7 @@ Your agents produce output. But who checks it before it hits production?
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-447%20passing-brightgreen.svg)](#running-tests)
+[![Tests](https://img.shields.io/badge/tests-465%20passing-brightgreen.svg)](#running-tests)
 
 <p align="center">
   <img src="docs/assets/governor_lifecycle_demo.gif" alt="Governor lifecycle demo — guard failure, rework, and pass" width="720">
@@ -124,7 +124,7 @@ Zero external dependencies. In-memory backend. Ready in 4 lines.
 Or install from source:
 
 ```bash
-git clone https://github.com/julianbusch/governor.git
+git clone https://github.com/june-jule/ai-governor.git
 cd governor
 pip install -e ".[dev]"
 ```
@@ -247,6 +247,25 @@ backend = AsyncNeo4jBackend(
 )
 engine = AsyncTransitionEngine(backend=backend)
 ```
+
+### TypeScript SDK
+
+A wire-compatible TypeScript SDK is available in [`governor-ts/`](governor-ts/):
+
+```bash
+npm install @governor/core
+```
+
+```typescript
+import { MemoryBackend, TransitionEngine } from "@governor/core";
+
+const backend = new MemoryBackend();
+const engine = new TransitionEngine(backend);
+
+const result = await engine.transitionTask("TASK_001", "READY_FOR_REVIEW", "EXECUTOR");
+```
+
+Same state machine, same guards (EG-01 through EG-08), same contract. See the [TypeScript README](governor-ts/README.md) for full docs and feature parity table.
 
 ---
 
@@ -536,18 +555,23 @@ Packaged schema file for bootstrap: `governor/schema/neo4j_schema.cypher`.
 
 ```
 governor/
-├── governor/               # Core package
+├── governor/               # Core Python package
 │   ├── backend/            # GovernorBackend + AsyncGovernorBackend
 │   ├── engine/             # TransitionEngine + AsyncTransitionEngine
 │   ├── guards/             # Built-in EG guards
-│   ├── mcp/               # MCP tool wrapper
-│   └── scoring/            # ScoringRubric + rubric JSON files
-├── governor/schema/        # packaged state_machine.json (single source)
-├── schema/                 # neo4j_schema.cypher
+│   ├── analytics/          # Graph analytics (GDS algorithms)
+│   ├── callbacks/          # Webhook event callbacks
+│   ├── mcp/               # MCP tool wrappers
+│   ├── scoring/            # ScoringRubric + rubric JSON files
+│   └── schema/             # state_machine.json + neo4j_schema.cypher
+├── governor-ts/            # TypeScript SDK (wire-compatible)
+├── schema/                 # neo4j_schema.cypher (bootstrap)
 ├── docs/                   # Architecture docs
 ├── examples/               # Runnable demo scripts
-├── tests/                  # 447 pytest tests
+├── benchmarks/             # Guard evaluation benchmarks
+├── tests/                  # 465 pytest tests
 ├── pyproject.toml
+├── CONTRIBUTING.md
 ├── LICENSE
 └── README.md
 ```
@@ -564,7 +588,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-447 tests covering engine, guards, scoring, validation, async support, Neo4j
+465 tests covering engine, guards, scoring, validation, async support, Neo4j
 backend (mocked), MCP tools, and error boundaries.
 
 ---
@@ -576,6 +600,11 @@ backend (mocked), MCP tools, and error boundaries.
 - [MCP Tools Reference](docs/MCP_TOOLS.md) — Tool schemas and request/response payloads
 - [Scoring Rubric](docs/SCORING_RUBRIC.md) — Evidence-based scoring model
 - [Why Governance](docs/WHY.md) — Real failure scenarios and how guards prevent them
+- [Graph Analytics](docs/GRAPH_ANALYTICS.md) — GDS algorithms for governance insights
+- [Neo4j vs Alternatives](docs/NEO4J_VS_ALTERNATIVES.md) — Backend comparison and decision framework
+- [Production Evidence](docs/PROOF.md) — Anonymized data from 5,000+ governed executions
+- [Migration Guide](docs/MIGRATION.md) — Upgrade steps between versions
+- [Benchmark Results](docs/BENCHMARK_RESULTS.md) — Guard evaluation performance data
 
 ---
 

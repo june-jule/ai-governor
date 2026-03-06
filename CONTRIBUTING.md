@@ -33,9 +33,12 @@ Setup, tests, style, and how to open a PR.
 - `governor/engine/` — Transition engine (state machine, guard evaluation)
 - `governor/guards/` — Built-in guard functions
 - `governor/scoring/` — Scoring and review logic
-- `governor/governance/` — Governance policies and validation
 - `governor/backend/` — Storage backends (in-memory, Neo4j)
-- `schema/` — JSON schemas for tasks, bundles, policies
+- `governor/analytics/` — Graph analytics (GDS algorithms)
+- `governor/callbacks/` — Webhook event callbacks
+- `governor/mcp/` — MCP tool wrappers
+- `governor-ts/` — TypeScript SDK (wire-compatible)
+- `schema/` — Neo4j schema (Cypher DDL)
 - `examples/` — Usage examples and quickstarts
 - `docs/` — Documentation
 - `tests/` — Test suite

@@ -27,5 +27,8 @@ venv/
 # Docs
 CHANGELOG.md
 
+# Claude
+.claude/
+
 # Node
 node_modules/
