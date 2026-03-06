@@ -631,18 +631,6 @@ Governor solves workflow-level governance. It's not the right tool for every pro
 **Use Governor when:** Agents produce work that moves through review stages, multiple
 roles are involved, and you need audit trails of who approved what.
 
----
-
-## Roadmap
-
-- Community backend adapters (contributions welcome)
-- OpenTelemetry integration for guard metrics
-- Web dashboard for audit trail visualization
-- Policy-as-code with versioned enforcement
-- Webhook event notifications
-
----
-
 ## Contributing
 
 1. Fork the repository
