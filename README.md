@@ -1,5 +1,7 @@
 # Governor
 
+> **This project has moved to [Neo4j Labs](https://github.com/neo4j-labs/ai-governor).** This repo remains as a mirror. For the latest updates, issues, and contributions, head to the official Neo4j Labs repository.
+
 **Quality gates for AI agents. Guards that don't get tired.**
 
 ```bash
